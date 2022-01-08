@@ -22,40 +22,40 @@ Generated files depend on an exteremly lightweight runtime (present in the `runt
 It is also pure-python.
 """
 
-def translate_to_xonsh(zsh: str, *, extra_functions: set[str] = frozenset()) -> str: 
+def translate_to_xonsh(zsh: str, *, extra_builtins: set[str] = frozenset()) -> str:
     """Translate the specified zsh code to xonsh
 
     If a parse error occurs (or an unsuppored feature is encountered),
     throws a zsh2xonsh.parser.TranslationError
 
-    Accepts `extra_functions` as the set of extra builtin functions
+    Accepts `extra_builtins` as the set of extra builtin functions
     (assumed to be provided to the code).
     """
     from .parser import ShellParser
-    parser = ShellParser(zsh.splitlines(), extra_functions=set(extra_functions))
+    parser = ShellParser(zsh.splitlines(), extra_builtins=frozenset(extra_builtins))
     stmts = []
     while (stmt := parser.statement()) is not None:
         stmts.append(stmt)
     return '\n'.join([stmt.translate() for stmt in stmts])
 
-def translate_to_xonsh_and_eval(zsh: str, *, extra_functions: dict[str, object] = None):
+def translate_to_xonsh_and_eval(zsh: str, *, extra_builtins: dict[str, object] = None):
     """Translate the specified zsh code to xonsh,
     then translate it.
 
     This is essentially a nice wrapper around the xonsh builtin `evalx`,
     running `evalx(translate_to_xonsh(zsh))`
 
-    The extra_functions allows the zsh code acess to an extra set of builtin functions.
+    The extra_builtins allows the zsh code acess to an extra set of builtin functions.
     """
-    if extra_functions is None:
-        extra_functions = {}
-    assert "runtime" not in extra_functions, "runtime is already provided"
+    if extra_builtins is None:
+        extra_builtins = {}
+    assert "runtime" not in extra_builtins, "runtime is already provided"
     from . import runtime
-    local = {'runtime': runtime, **extra_functions}
+    local = {'runtime': runtime, **extra_builtins}
     try:
         from xonsh.built_ins import builtins
         evlax= builtins.evalx
     except ImportError:
         raise RuntimeError("Unable to import xonsh builtins. Do you have it installed?")
-    translated = translate_to_xonsh(zsh, extra_functions=set(extra_functions.keys()))
+    translated = translate_to_xonsh(zsh, extra_builtins=set(extra_builtins.keys()))
     execx(translated, mode='exec', locs=local)

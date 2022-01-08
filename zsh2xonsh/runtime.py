@@ -96,7 +96,6 @@ def zsh(cmd: str, *, inherit_env=True, check=False, trim_trailing_newline=True) 
             s = s[:-1]
         return s
     except CalledProcessError as cause:
-        print("ENV", env)
         if check:
             raise ZshError("Failed to execute {cmd!r}", returncode=cause.returncode) from cause
         else:

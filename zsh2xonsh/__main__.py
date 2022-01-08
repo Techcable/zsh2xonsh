@@ -5,7 +5,7 @@ from . import translate_to_xonsh
 @click.command()
 @click.option('--validate', help="Only validate the inputs, do not output them")
 @click.option(
-    'extra_functions', '--builtin', '-b',
+    'extra_builtins', '--builtin', '-b',
     help="An extra builtin funciton, assumed to be provided by the environment", 
     multiple=True
 )
@@ -18,7 +18,7 @@ from . import translate_to_xonsh
     help="Include the runtime as an import (instead of assuming it's already imported)"
 )
 @click.argument('input_file', required=False)
-def zsh2xonsh(input_file: str, extra_functions, cmd=None, validate=False, include_runtime=True):
+def zsh2xonsh(input_file: str, extra_builtins, cmd=None, validate=False, include_runtime=True):
     """Translates zsh to xonsh scripts"""
     if cmd is not None:
         text = cmd
@@ -27,7 +27,7 @@ def zsh2xonsh(input_file: str, extra_functions, cmd=None, validate=False, includ
             text = f.read()
     else:
         raise click.ClickException("Must specifiy either `--cmd` or an input file")
-    output = translate_to_xonsh(text)
+    output = translate_to_xonsh(text, extra_builtins=extra_builtins)
     if validate:
         return
     if include_runtime:

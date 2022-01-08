@@ -47,30 +47,29 @@ class ShellParser:
     """A recursive decent parser for a limited subset of `zsh`.
 
     Please shoot me :)"""
-    __slots__ = "_current_line", "lines", "_lineno", "_offset", "dialect", "extra_functions", "_stmt_dispatch"
+    __slots__ = "_current_line", "lines", "_lineno", "_offset", "dialect", "extra_builtins", "_stmt_dispatch"
     lines: list[str]
     _current_line: Optional[str] # None if EOF
-    extra_functions: set[str]
+    extra_builtins: set[str]
     dialect: str
-    def __init__(self, lines: list[str], *, extra_functions: set[str]=frozenset(), dialect="zsh"):
+    def __init__(self, lines: list[str], *, extra_builtins: set[str]=frozenset(), dialect="zsh"):
         global _BUILTIN_STMT_DISPATCH
         if dialect != "zsh":
             raise NotImplementedError(f"Unsupported dialect: {dialect}")
-        assert isinstance(extra_functions, set)
+        assert isinstance(extra_builtins, (set, frozenset))
         self._current_line = lines[0] if lines else None
         self.lines = lines
         self.dialect = dialect
-        self.extra_functions = extra_functions
+        self.extra_builtins = extra_builtins
         dispatch = _BUILTIN_STMT_DISPATCH.copy()
-        if extra_functions:
-            for extra in extra_functions:
+        if extra_builtins:
+            for extra in extra_builtins:
                 assert WORD_PATTERN.fullmatch(extra) is not None, "Invalid extra function: {extra!r}"
                 assert extra not in dispatch, "The \"extra\" function {extra!r} conflicts with a builtin" 
                 dispatch[extra] = ShellParser.function_invocation
         self._lineno = 1
         self._offset = 0
         self._stmt_dispatch = dispatch
-
 
     @property
     def location(self) -> Location:
@@ -359,7 +358,7 @@ class ShellParser:
     def function_invocation(self) -> FunctionInvocation:
         start = self.location
         name = self.take_word()
-        assert name in self.extra_functions
+        assert name in self.extra_builtins
         end = self.location
         args = []
         while self.remaining_line.strip():

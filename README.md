@@ -66,7 +66,7 @@ If you want to evaluate the code immediately after translating it (for example i
 
 Additionally you can use the CLI (`python -m zsh2xonsh`), which accepts an import.
 
-If you want to provide extra utility functions to your code, you can define `extra_functions`.
+If you want to provide extra utility functions to your code, you can define `extra_builtins`.
 
 ### Example
 In my `.xonshrc`, I dynamically translate and evaluate the output of `brew shellenv`:
