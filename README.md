@@ -1,4 +1,4 @@
-zsh2xonsh
+zsh2xonsh ![pypy](https://img.shields.io/pypi/v/zsh2xonsh) ![powered-by-xonsh](https://img.shields.io/badge/powered%20by-xonsh-brightgreen)
 =========
 Have you heard of [xonsh](https://xon.sh/)? It's a Python-powered shell.
 
@@ -31,8 +31,7 @@ That is, `export FOO="$(echo bar)"` in a shell script becomes (essentially)  `$F
 
 We have `zsh` handle all the globbing/quoting/bizzare POSIX quirks.
 
-If we encounter an unsupported feature (like a `for` loop), we
-throw a descriptive error instead of doing something potenitally incorrect.
+In the face of ambiguity, or if we encounter an unsupported feature (like a `for` loop), then we fail-fast.
 
 This is the most important feature. If something can't be supported 100%, then it will throw a descriptive error. Anything else is a bug :)
 

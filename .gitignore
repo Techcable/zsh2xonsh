@@ -1,5 +1,10 @@
 # Python
 __pycache__
 
+# Setuptools
+*.egg-info
+build
+dist
+
 # MacOS
 .DS_Store
