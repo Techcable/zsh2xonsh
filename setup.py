@@ -6,7 +6,7 @@ with open('README.md') as rd:
 
 setup(
     name="zsh2xonsh",
-    version="0.1.0",
+    version="0.1.0-beta.1",
     python_requires='>=3.8',
     description="A highly-compatible translator from zsh -> xonsh",
     maintainer="Techcable",
@@ -28,7 +28,7 @@ setup(
         "Development Status :: 3 - Alpha",
         "Environment :: Console",
         "Operating System :: OS Independent",
-        "License :: OSI Approved :: MIT License"
+        "License :: OSI Approved :: MIT License",
         "Topic :: System :: Shells",
         "Topic :: System :: System Shells",
     ],
