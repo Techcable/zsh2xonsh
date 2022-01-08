@@ -58,7 +58,21 @@ If you try anything else (or encounter an unsupported corner case), then you wil
 ## Installation & Usage
 This is a pypi package, install it with `pip install zsh2xonsh`.
 
-Then, you can use the CLI (`python -m zsh2xonsh`) or call the module from your `.xonshrc`.
+The API is simple, run `translate_to_xonsh(str) -> str` to translate from `zsh` -> `xonsh` code.
+This does not require xonsh at runtime, and can be done ahead of time. 
+
+If you want to evaluate the code immediately after translating it (for example in a `.xonshrc`), you can use
+. This requires xonsh at runtime (obviously) and uses the `evalx` builtin.
+
+Additionally you can use the CLI (`python -m zsh2xonsh`), which accepts an import.
+
+If you want to provide extra utility functions to your code, you can define `extra_functions`.
+
+### Example
+In my `.xonshrc`, I dynamically translate and evaluate the output of `brew shellenv`:
+````xonsh
+zsh2xonsh.translate_to_xonsh_and_eval($(/opt/homebrew/bin/brew shellenv))
+````
 
 ## Motiviation
 First of all, I need support for `eval $(brew shellenv)` .

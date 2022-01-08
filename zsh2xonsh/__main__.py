@@ -1,7 +1,7 @@
 import click
 
 from .parser import ShellParser
-
+from . import translate_to_xonsh
 @click.command()
 @click.option('--validate', help="Only validate the inputs, do not output them")
 @click.option(
@@ -21,22 +21,19 @@ from .parser import ShellParser
 def zsh2xonsh(input_file: str, extra_functions, cmd=None, validate=False, include_runtime=True):
     """Translates zsh to xonsh scripts"""
     if cmd is not None:
-        lines = cmd.splitlines()
+        text = cmd
     elif input_file is not None:
         with open(input_file, 'rt') as f:
-            lines = f.readlines()
+            text = f.read()
     else:
         raise click.ClickException("Must specifiy either `--cmd` or an input file")
-    parser =ShellParser(lines, extra_functions=set(extra_functions))
-    stmts = []
-    while (stmt := parser.statement()) is not None:
-        stmts.append(stmt)
+    output = translate_to_xonsh(text)
     if validate:
         return
     if include_runtime:
         print('from zsh2xonsh import runtime')
-    for stmt in stmts:
-        print(stmt.translate().rstrip('\n'))
+    for line in output.splitlines():
+        print(stmt)
 
 if __name__ == "__main__":
     zsh2xonsh()
