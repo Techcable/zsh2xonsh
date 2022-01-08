@@ -13,8 +13,12 @@ from .parser import ShellParser
     'cmd', '--cmd', '-c',
     help="Translate a single input command"
 )
+@click.option(
+    'include_runtime', '--runtime/--no-runtime', '-r', is_flag=True,
+    help="Include the runtime as an import (instead of assuming it's already imported)"
+)
 @click.argument('input_file', required=False)
-def zsh2xonsh(input_file: str, extra_functions, cmd=None, validate=False):
+def zsh2xonsh(input_file: str, extra_functions, cmd=None, validate=False, include_runtime=True):
     """Translates zsh to xonsh scripts"""
     if cmd is not None:
         lines = cmd.splitlines()
@@ -29,6 +33,8 @@ def zsh2xonsh(input_file: str, extra_functions, cmd=None, validate=False):
         stmts.append(stmt)
     if validate:
         return
+    if include_runtime:
+        print('from zsh2xonsh import runtime')
     for stmt in stmts:
         print(stmt.translate().rstrip('\n'))
 
