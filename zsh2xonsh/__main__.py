@@ -33,7 +33,7 @@ def zsh2xonsh(input_file: str, extra_builtins, cmd=None, validate=False, include
     if include_runtime:
         print('from zsh2xonsh import runtime')
     for line in output.splitlines():
-        print(stmt)
+        print(line)
 
 if __name__ == "__main__":
     zsh2xonsh()
