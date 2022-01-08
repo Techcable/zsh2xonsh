@@ -12,3 +12,7 @@ def is_simple_quoted(s: str) -> bool:
 INTEGER_PATTERN = re.compile(r"[\d](\d|_\d)*")
 def is_valid_integer(s: str) -> bool:
     return INTEGER_PATTERN.fullmatch(s) is not None
+
+# Variables that are traditonally strings,
+# that xonsh turns into lists. The primary example is $PATH
+PATH_LIKE_VARS = frozenset(["PATH",])

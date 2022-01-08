@@ -89,7 +89,10 @@ class AssignmentStmt(Statement):
 
     def translate(self) -> str:
         if self.kind == AssignmentKind.EXPORT:
-            return f"${self.target}={self.value.translate()}"
+            if self.target in translate.PATH_LIKE_VARS:
+                return f"runtime.assign_path_var(${self.target},{self.value.translate()},var={self.target!r})"
+            else:
+                return f"${self.target}={self.value.translate()}"
         elif self.kind == AssignmentKind.LOCAL:
             return f"{self.target}={self.value.translate()}"
         else:
