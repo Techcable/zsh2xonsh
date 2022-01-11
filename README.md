@@ -50,9 +50,18 @@ The included shell features include:
    - Translates `$PATH` correctly (xonsh thinks it's a list, zsh thinks it's a string)
    - This is where the subprocess approach doesn't work blindly....
       - We support it cleanly by doing the left-hand assignment xonsh, and the right-hand expression in `zsh` :)
-   - Local variables (local var=x) are supported too :)
+   - Local variables (local var=x) are supported too (with the proper scoping)
+5. Support `alias foo="bar"`
+   - This even supports globbing in the alias, so `alias lsdot="echo .*"` would glob in the same way that zsh does (experimental)
+6. Basic support for function declarations (and having positional arguments)
+   - Local variables are scoped properly inside the function :)
+7. Support for 'echo' builtin as a python 'print'
 
-All of these behaviors are 100% compatible with their zsh equivalents.
+You can also add "external builtins", which are extra commands that the script can invoke. In my own files, I use this to add an `extend_path` command (even though zsh2xonsh properly translates $PATH variables already, it's still a nice utility)
+
+My [macbook config](./examples/macbook2021-config.zsh) is a good example of the full power of the translator. It supports function declarations, if/then statements and conditionals (all in an attempt to cleanup homebrew cludges lol).
+
+All of these behaviors should be 100% compatible with their zsh equivalents.
 If you try anything else (or encounter an unsupported corner case), then you will get a descripitive error :)
 
 ## Installation & Usage
@@ -74,12 +83,14 @@ In my `.xonshrc`, I dynamically translate and evaluate the output of `brew shell
 zsh2xonsh.translate_to_xonsh_and_eval($(/opt/homebrew/bin/brew shellenv))
 ````
 
+Likewise, I do the same with my machine-specific `.config.zsh` files (in the example directory).
+
 ## Motiviation
 First of all, I need support for `eval $(brew shellenv)` .
 
-Second of all, I still use `zsh` as my backup shell.
+Second of all, I still use `zsh` as my backup shell (by the use of my [wrap-shell](https://github.com/Techcable/wrap-shell) utility).
 
-This means I need to setup `$PATH` and other enviornment variables for both of these shells.
+This means I need to setup `$PATH` and other enviornment variables for both of these shells, indepenently of each other.
 
 The natural way to set these up is by using shell scripts.
 I have a seperate one for each of my different machines (server, macbook, old lapotop, etc)
@@ -87,4 +98,7 @@ I have a seperate one for each of my different machines (server, macbook, old la
 For each of these (tiny) shell scripts, `zsh2xonsh` works very well :)
 
 So in addition to properly translating `$(brew shellenv)`,
-it also needs to translate basic shell "environement files".
+it also needs to translate these basic shell "environement files".
+
+Turns out, dealing with platform specific quirks can get pretty intense and requires things like function definitions and if/then statements.
+In order to properly support `export`s, control flow has to be emulated in Python (can't just delegate to zsh).
