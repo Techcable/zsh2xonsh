@@ -5,6 +5,14 @@ import os.path
 import collections.abc
 from subprocess import run, CalledProcessError, PIPE, DEVNULL
 
+try:
+    from . import xonshutils
+except (ImportError, RuntimeError) as e:
+    print("FATAL ERROR: xonsh not detected at runtime!")
+    print()
+    raise
+
+
 class ZshError(RuntimeError):
     returncode: Optional[int]
     # NOTE: Can't use kw-only args for 3.8 compat :(
@@ -81,17 +89,20 @@ def _check_syntax(cmd):
     try:
         run(['zsh', '--no-exec', '-c', cmd], check = True, stderr=PIPE, stdout=DEVNULL, encoding='utf8')
     except CalledProcessError as e:
-        # Only reason this can fail is if 
+        # Only reason this can fail is if syntax is invalid
         reason = e.stderr.strip()
         raise ZshSyntaxError("Invalid `zsh` command {cmd!r}: {reason}") from None
 
 def zsh(cmd: str, *, inherit_env=True, check=False, trim_trailing_newline=True) -> str:
     _check_syntax(cmd) # Verify its valid syntax
-    env = dict(os.environ) if inherit_env else {}
+    # NOTE: Use xonsh's environment
+    #
+    # This avoids issue with `os.environ` caching
+    env = xonshutils.get_correct_env() if inherit_env else {}
     env.update(FAKE_ENV)
     try:
         # NOTE: Inherit stderr. This matches behavior of zsh's $(...)
-        s = run(['zsh', '-c', cmd], check=True, stdout=PIPE, encoding='utf-8').stdout
+        s = run(['zsh', '-c', cmd], env=env, check=True, stdout=PIPE, encoding='utf-8').stdout
         if trim_trailing_newline and s[-1] == '\n':
             s = s[:-1]
         return s
