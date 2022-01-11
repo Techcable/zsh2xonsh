@@ -5,12 +5,8 @@ import os.path
 import collections.abc
 from subprocess import run, CalledProcessError, PIPE, DEVNULL
 
-try:
-    from . import xonshutils
-except (ImportError, RuntimeError) as e:
-    print("FATAL ERROR: xonsh not detected at runtime!")
-    print()
-    raise
+
+from . import xonshi
 
 
 class ZshError(RuntimeError):
@@ -98,7 +94,7 @@ def zsh(cmd: str, *, inherit_env=True, check=False, trim_trailing_newline=True) 
     # NOTE: Use xonsh's environment
     #
     # This avoids issue with `os.environ` caching
-    env = xonshutils.get_correct_env() if inherit_env else {}
+    env = xonshi.get_correct_env() if inherit_env else {}
     env.update(FAKE_ENV)
     try:
         # NOTE: Inherit stderr. This matches behavior of zsh's $(...)
