@@ -17,9 +17,10 @@ Others may be added in the future. This is sufficent to handle my "environment f
 
 The supported shell dialect is zsh (which is why its called zsh2xonsh).
 
-Generated files depend on an exteremly lightweight runtime (present in the `runtime` file).
+Generated files depend on an lightweight runtime and a context.
+The `ctx` is used to resolve local variables.
 
-It is also pure-python.
+The whole runtime and generator is all pure-python (except for the actual generated code).
 """
 
 def translate_to_xonsh(zsh: str, *, extra_builtins: set[str] = frozenset()) -> str:
@@ -51,11 +52,12 @@ def translate_to_xonsh_and_eval(zsh: str, *, extra_builtins: dict[str, object] =
         extra_builtins = {}
     assert "runtime" not in extra_builtins, "runtime is already provided"
     from . import runtime
-    local = {'runtime': runtime, **extra_builtins}
     try:
         from xonsh.built_ins import builtins
-        evlax= builtins.evalx
+        evlax = builtins.evalx
     except ImportError:
         raise RuntimeError("Unable to import xonsh builtins. Do you have it installed?")
     translated = translate_to_xonsh(zsh, extra_builtins=set(extra_builtins.keys()))
-    execx(translated, mode='exec', locs=local)
+    with runtime.init_context() as ctx:
+        local = {'ctx': ctx, **extra_builtins}
+        execx(translated, mode='exec', locs=local)

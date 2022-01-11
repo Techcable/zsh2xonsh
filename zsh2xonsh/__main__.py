@@ -14,11 +14,14 @@ from . import translate_to_xonsh
     help="Translate a single input command"
 )
 @click.option(
-    'include_runtime', '--runtime/--no-runtime', '-r', is_flag=True,
-    help="Include the runtime as an import (instead of assuming it's already imported)"
+    'assume_runtime', '--assume-runtime/--no-assume-runtime', '-r', is_flag=True,
+    help="Assume the runtime is already present (instead of assuming it's already present)"
+)
+@click.option(
+    'assume_context', '--assume-context', '-c', is_flag=True,
 )
 @click.argument('input_file', required=False)
-def zsh2xonsh(input_file: str, extra_builtins, cmd=None, validate=False, include_runtime=True):
+def zsh2xonsh(input_file: str, extra_builtins, cmd=None, validate=False, assume_runtime=False, assume_context=False):
     """Translates zsh to xonsh scripts"""
     if cmd is not None:
         text = cmd
@@ -30,10 +33,14 @@ def zsh2xonsh(input_file: str, extra_builtins, cmd=None, validate=False, include
     output = translate_to_xonsh(text, extra_builtins=extra_builtins)
     if validate:
         return
-    if include_runtime:
+    indent = ""
+    if not assume_runtime:
         print('from zsh2xonsh import runtime')
+    if not assume_context:
+        print("with runtime.init_context() as ctx:")
+        indent = ' ' * 4
     for line in output.splitlines():
-        print(line)
+        print(indent + line)
 
 if __name__ == "__main__":
     zsh2xonsh()

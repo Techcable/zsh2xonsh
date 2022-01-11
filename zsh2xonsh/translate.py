@@ -2,9 +2,6 @@
 import ast as pyast
 import re
 
-def python_literal(s: str) -> str:
-    return pyast.unquote(pyast.Constant(s))
-
 SAFE_QUOTED_STRING = re.compile(r"[\w\-\/]*")
 def is_simple_quoted(s: str) -> bool:
     """Determines if the quoted string can be output directly without delegating to zsh for expansion

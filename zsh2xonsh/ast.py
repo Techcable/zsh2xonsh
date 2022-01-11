@@ -48,15 +48,14 @@ class QuotedExpression(Expression):
         if translate.is_simple_quoted(txt):
             return repr(txt)
         else:
-            return f"runtime.zsh_expand_quote({txt!r})"
-
+            return f"ctx.zsh_expand_quote({txt!r})"
 
 @dataclass
 class SubcommandExpr(Expression):
     command: str
 
     def translate(self) -> str:
-        return f"runtime.zsh({self.command!r})"
+        return f"ctx.zsh({self.command!r})"
 
 @dataclass
 class LiteralExpr(Expression):
@@ -64,7 +63,7 @@ class LiteralExpr(Expression):
 
     def translate(self) -> str:
         if self.text.startswith('~'):
-            return f"runtime.expand_literal({self.text!r})"
+            return f"ctx.expand_literal({self.text!r})"
         elif translate.is_valid_integer(self.text):
             return f"{int(self.text)}"
         else:
@@ -75,7 +74,7 @@ class TestExpr(Expression):
     text: str
 
     def translate(self) -> str:
-        return f"runtime.zsh_test({self.text!r})"
+        return f"ctx.zsh_test({self.text!r})"
 
 class AssignmentKind(Enum):
     EXPORT = "export"
@@ -91,11 +90,11 @@ class AssignmentStmt(Statement):
     def translate(self) -> str:
         if self.kind == AssignmentKind.EXPORT:
             if self.target in translate.PATH_LIKE_VARS:
-                return f"runtime.assign_path_var(${self.target},{self.value.translate()},var={self.target!r})"
+                return f"ctx.assign_path_var(${self.target},{self.value.translate()},var={self.target!r})"
             else:
                 return f"${self.target}={self.value.translate()}"
         elif self.kind == AssignmentKind.LOCAL:
-            return f"{self.target}={self.value.translate()}"
+            return f"{self.target}=ctx.assign_local({self.target!r}, {self.value.translate()})"
         elif self.kind == AssignmentKind.ALIAS:
             alias_impl = None
             if isinstance(self.value, LiteralExpr):
@@ -105,7 +104,8 @@ class AssignmentStmt(Statement):
                 if translate.can_safely_be_split(self.value.inside_text):
                     alias_impl = '[' + ', '.join(map(repr, self.value.inside_text.split(' '))) + ']'
                 else:
-                    alias_impl = f"runtime.zsh_impl_complex_alias({self.value.inside_text!r})"
+                    # TODO: This won't have acess to other aliases
+                    alias_impl = f"ctx.zsh_impl_complex_alias({self.value.inside_text!r})"
             else:
                 raise ShellParseError("Don't know how to translate alias target", self.value.span.start)
             if not translate.is_simple_quoted(self.target):
