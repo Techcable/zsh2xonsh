@@ -32,7 +32,7 @@ _NAUGHTY_CHARS = {'\\', '\''}
 def quote_into_shell_string(s):
     res = ['\'']
     for c in s:
-        if res in _NAUGHTY_CHARS:
+        if c in _NAUGHTY_CHARS:
             res.extend(("\\", c))
         else:
             res.append(c)
