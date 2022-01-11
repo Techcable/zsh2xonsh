@@ -28,12 +28,24 @@ FAKE_ENV = {
 }
 
 class ZshContext:
-    __slots__ = "_locals", "parent"
+    __slots__ = "_locals", "parent", "_positional_vars"
     parent: Optional[ZshContext]
     _locals: dict[str, object] # A mapping from local variable names to values
+    _positional_vars: list[str] # Note: These are seperate from locals because zsh handles $0 $1 $2 specially
     def __init__(self, *, parent: Optional[ZshContext] = None):
         self._locals = {}
         self.parent = parent
+        self._positional_vars = []
+
+    @contextmanager
+    def begin_function(self, name: str, args: object) -> ZshContext:
+        assert isinstance(name, str)
+        ctx = ZshContext(parent=self)
+        assert not ctx._positional_vars
+        ctx._positional_vars.append(name) # $0
+        ctx._positional_vars.extend(args)
+        yield ctx
+        ctx._locals.clear()
 
     def assign_local(self, name: str, value: object):
         assert isinstance(name, str)
@@ -149,7 +161,10 @@ class ZshContext:
         env.update(self._resolved_locals())
         try:
             # NOTE: Inherit stderr. This matches behavior of zsh's $(...)
-            s = run(['zsh', '-c', cmd], env=env, check=True, stdout=PIPE if pipe else None, encoding='utf-8').stdout
+            #
+            # Per the zsh docs, $0 $1 $2 are specified after the literal `-c`
+            # You can test this with `zsh -c 'echo $1' foo bar` -> bar
+            s = run(['zsh', '-c', cmd, *self._positional_vars], env=env, check=True, stdout=PIPE if pipe else None, encoding='utf-8').stdout
             if trim_trailing_newline and s and s[-1] == '\n':
                 s = s[:-1]
             return s

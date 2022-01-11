@@ -59,5 +59,5 @@ def translate_to_xonsh_and_eval(zsh: str, *, extra_builtins: dict[str, object] =
         raise RuntimeError("Unable to import xonsh builtins. Do you have it installed?")
     translated = translate_to_xonsh(zsh, extra_builtins=set(extra_builtins.keys()))
     with runtime.init_context() as ctx:
-        local = {'ctx': ctx, **extra_builtins}
-        execx(translated, mode='exec', locs=local)
+        global_vars = extra_builtins # Define extra builtins as globals, so sub-functions can get them
+        execx(translated, mode='exec', locs={'ctx': ctx}, glbs=global_vars)

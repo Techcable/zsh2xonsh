@@ -1,3 +1,5 @@
+import sys
+
 import click
 
 from .parser import ShellParser
@@ -30,7 +32,14 @@ def zsh2xonsh(input_file: str, extra_builtins, cmd=None, validate=False, assume_
             text = f.read()
     else:
         raise click.ClickException("Must specifiy either `--cmd` or an input file")
-    output = translate_to_xonsh(text, extra_builtins=extra_builtins)
+    try:
+        output = translate_to_xonsh(text, extra_builtins=extra_builtins)
+    except KeyboardInterrupt as e:
+        import traceback
+        print("Interrupted while translating", file=sys.stderr)
+        print("Did the parser stall?", file=sys.stderr)
+        print(traceback.format_exc(), file=sys.stderr)
+        raise
     if validate:
         return
     indent = ""

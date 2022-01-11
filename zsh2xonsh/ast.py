@@ -1,4 +1,5 @@
 """Basic AST for zsh code"""
+import itertools
 from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
@@ -127,22 +128,71 @@ class ConditionalStmt(Statement):
 
 
 @dataclass
+class FunctionDeclaration(Statement):
+    name: str
+    body: list[Statement]
+
+    def translate(self) -> str:
+        # This is the most complex of them all
+        # This translates into a python function that accepts variable positional arguments
+        #
+        # Each arg is unpacked into a local $1 $2 $3 accessible from inside the function
+        indent = ' ' * 4
+        # TODO: This could probably be implemented with some sort of decorator
+        header = [
+            f"def {self.name}(*args, parent_ctx):",
+            f"{indent}with parent_ctx.begin_function({self.name!r}, args) as ctx:"
+        ]
+        body = [
+            # NOTE: This is effectively `flatten`. Used because stmt.translate() might itself be multiline
+            *itertools.chain.from_iterable((stmt.translate().splitlines() for stmt in self.body))
+        ]
+        return '\n'.join([*header, *((indent * 2) + b for b in body)])
+
+class FunctionInvocationKind(Enum):
+    EXTRA_BUILTIN = "extra"
+    STANDARD_BUILTIN = "std"
+    USER_DEFINED_FUNCTION = "user-func"
+
+_STANDARD_BUILTIN_MAP = {
+    "echo": "print"
+}
+
+@dataclass
 class FunctionInvocation(Statement):
     name: str
     args: list[Expression]
+    kind: FunctionInvocationKind
 
     def translate(self) -> str:
-        if len(self.args) <= 1:
-            sep = ""
-            prefix = ""
+        def format_call(name, args, **kwargs):
+            if len(args) <= 1:
+                sep = ""
+                prefix = ""
+            else:
+                sep = "\n"
+                prefix = ' ' * 2
+            return sep.join([
+                f"{name}(",
+                *(f"{prefix}{arg}," for arg in args),
+                *(f"{prefix}{key}={value}," for key, value in kwargs.items()),
+                ")"
+            ])
+        args = []
+        kwargs = {}
+        if self.kind == FunctionInvocationKind.EXTRA_BUILTIN:
+            actual_name = self.name
+        elif self.kind == FunctionInvocationKind.STANDARD_BUILTIN:
+            try:
+                actual_name = _STANDARD_BUILTIN_MAP[self.name]
+            except KeyError:
+                raise ZshError(f"Not yet implemented: Builtin {self.name}") from None
+        elif self.kind == FunctionInvocationKind.USER_DEFINED_FUNCTION:
+            actual_name = self.name
+            kwargs['parent_ctx'] = 'ctx'
         else:
-            sep = "\n"
-            prefix = ' ' * 2
-        return sep.join([
-            f"{self.name}(",
-            *(prefix + arg.translate() for arg in self.args),
-            ")"
-        ])
-
-
-
+            raise AssertionError
+        args.extend((arg.translate() for arg in self.args))
+        return format_call(
+            actual_name, args, **kwargs
+        )

@@ -43,14 +43,19 @@ WORD_PATTERN = re.compile(r"\w+")
 WHITESPACE_PATTERN = re.compile(r"\s*")
 # NOTE: We only allow what the translator considers safe
 SHELL_LITERAL_PATTERN = translate.SAFE_LITERAL_PATTERN
+STANDARD_BUILTINS = {
+    'echo'
+}
 class ShellParser:
     """A recursive decent parser for a limited subset of `zsh`.
 
     Please shoot me :)"""
-    __slots__ = "_current_line", "lines", "_lineno", "_offset", "dialect", "extra_builtins", "_stmt_dispatch"
+    __slots__ = "_current_line", "lines", "_lineno", "_offset", "dialect", "extra_builtins", "_stmt_dispatch", "_defined_functions"
     lines: list[str]
     _current_line: Optional[str] # None if EOF
     extra_builtins: set[str]
+    # HACK: This should not be in the parser
+    _defined_functions: set[str]
     dialect: str
     def __init__(self, lines: list[str], *, extra_builtins: set[str]=frozenset(), dialect="zsh"):
         global _BUILTIN_STMT_DISPATCH
@@ -62,11 +67,17 @@ class ShellParser:
         self.dialect = dialect
         self.extra_builtins = extra_builtins
         dispatch = _BUILTIN_STMT_DISPATCH.copy()
+        # In theory we could hoist this out of here, but it's not really worth it
+        for bltn in STANDARD_BUILTINS:
+            assert WORD_PATTERN.fullmatch(bltn) is not None, "Invalid builtin function: {bltn!r}"
+            assert bltn not in dispatch, "The standard builtin function {bltn!r} conflicts with an existing builtin" 
+            dispatch[bltn] = ShellParser.function_invocation
         if extra_builtins:
             for extra in extra_builtins:
                 assert WORD_PATTERN.fullmatch(extra) is not None, "Invalid extra function: {extra!r}"
                 assert extra not in dispatch, "The \"extra\" function {extra!r} conflicts with a builtin" 
                 dispatch[extra] = ShellParser.function_invocation
+        self._defined_functions = set()
         self._lineno = 1
         self._offset = 0
         self._stmt_dispatch = dispatch
@@ -221,6 +232,8 @@ class ShellParser:
             s = self.parse_string()
             end = self.location
             return QuotedExpression(Span(start, end), s)
+        elif remaining.startswith(';'):
+            return None # Consider end of expressions (because this terminates statement)
         else:
             raise ShellParseError("Unable to parse expression", self.location)
 
@@ -328,7 +341,7 @@ class ShellParser:
         start = self.location 
         start_word = self.take_word()
         if start_word != "if":
-            raise ShellParseError()
+            raise ShellParseError("Expected an `if`", self.location)
         condition = self.expression();
         self.skip_whitespace()
         if not self.remaining_line.startswith(";"):
@@ -355,19 +368,75 @@ class ShellParser:
         end = self.location
         return ConditionalStmt(Span(start, end), condition=condition, then=then)
 
+    def function_declaration(self) -> FunctionDeclaration:
+        start = self.location
+        start_word = self.take_word()
+        if start_word != "function":
+            raise ShellParseError("Expected a `function`", self.location)
+        self.skip_whitespace()
+        name = self.take_word()
+        if not name:
+            raise ShellParseError("Expected a name for the function", self.location)
+        self.skip_whitespace()
+        open_parens = self.take_while(re.compile(r"\(\s*\)"))
+        if not open_parens:
+            raise ShellParseError(f"Expected opening parens () for function declaration {name!r}", self.location)
+        self.skip_whitespace()
+        if self.remaining_line.startswith("{"):
+            self._offset += 1
+        else:
+            raise ShellParseError("Expected opening brace")
+        body = []
+        while True:
+            self.skip_whitespace_lines()
+            if self.remaining_line.startswith('}'):
+                self._offset += 1
+                end = self.location
+                print("Found closing", self.location)
+                break
+            else:
+                stmt = self.statement()
+                body.append(stmt)
+
+        # TODO: This doesn't care about overriding or scoping or anything
+        #
+        # Ah well
+        self._defined_functions.add(name)
+        if name in self._stmt_dispatch:
+            raise ShellParseError("Defining {name!r} conflicts with existing builtin/statement", start)
+        else:
+            self._stmt_dispatch[name] = ShellParser.function_invocation
+        return FunctionDeclaration(
+            span=Span(start, end),
+            name=name,
+            body=body,
+        )
+
+
     def function_invocation(self) -> FunctionInvocation:
         start = self.location
         name = self.take_word()
-        assert name in self.extra_builtins
+        if name in self.extra_builtins:
+            kind = FunctionInvocationKind.EXTRA_BUILTIN
+        elif name in STANDARD_BUILTINS:
+            kind = FunctionInvocationKind.STANDARD_BUILTIN
+        elif name in self._defined_functions:
+            kind = FunctionInvocationKind.USER_DEFINED_FUNCTION
+        else:
+            raise AssertionError(f"Unknown type of invocation for {name!r} @ {start}")
         end = self.location
         args = []
         while self.remaining_line.strip():
-            args.append(self.expression())
+            expr = self.expression()
+            if expr is None:
+                break
+            args.append(expr)
             end = self.location
         return FunctionInvocation(
             span=Span(start,end),
             name=name,
-            args=args
+            args=args,
+            kind=kind
         )
 
 _BUILTIN_STMT_DISPATCH = {
@@ -375,4 +444,5 @@ _BUILTIN_STMT_DISPATCH = {
     "local": ShellParser.assignment_stmt,
     "alias": ShellParser.assignment_stmt, # treat alias as a special case of assignment
     "if": ShellParser.conditional_stmt,
+    "function": ShellParser.function_declaration,
 }
