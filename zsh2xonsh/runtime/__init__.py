@@ -1,5 +1,5 @@
 """The zsh2xonsh `runtime`. This is invoked by generated code...."""
-from typing import Optional
+from typing import Optional, Callable
 
 import os.path
 import collections.abc
@@ -24,6 +24,22 @@ FAKE_ENV = {
     "SHELL": "/bin/zsh"
 }
 
+# TODO: This could use some work
+# I do not understand the intracacies of single-quoted strings
+#
+# Could accidentally end up with a bizzare glob here ;)
+_NAUGHTY_CHARS = {'\\', '\''}
+def quote_into_shell_string(s):
+    res = ['\'']
+    for c in s:
+        if res in _NAUGHTY_CHARS:
+            res.extend(("\\", c))
+        else:
+            res.append(c)
+    res.append('\'')
+    return ''.join(res)
+
+
 def zsh_test(test: str) -> bool:
     try:
         zsh(f"[[ {test} ]]")
@@ -33,6 +49,33 @@ def zsh_test(test: str) -> bool:
         return False
     else:
         return True
+
+def zsh_impl_complex_alias(alias: str) -> Callable:
+    """Handle a "complex" alias like `alias foo='echo .*'`
+
+    The glob is expanded each time the alias is executed, so it gives different results
+    in different directoreis.
+
+    From the zsh docs:
+    > Every eligible word in the shell input is checked to see if there is an alias defined for it.
+    > If so, it is replaced by the text of the alias if it is in command position 
+
+    Also
+
+    > Alias expansion is done on the shell input before any other expansion except history expansion
+
+    This delegates to zsh for the hard part of actual doing the glob expansion.
+
+    Returns a callable function that actually implements the alias"""
+    def impl_callaback(args):
+        # So what about those extra args provided to xonsh alias callbacks?
+        # Do they do something special to input/output?
+        cmd = alias # let zsh do the expansion
+        if args:
+            cmd += " "
+            cmd += ' '.join(quote_into_shell_string(arg) for arg in args)
+        return zsh(cmd)
+    return impl_callaback
 
 def expand_literal(s: str) -> str:
     # NOTE: It's up to the compiler to avoid unessicary calls to this function
@@ -89,7 +132,7 @@ def _check_syntax(cmd):
         reason = e.stderr.strip()
         raise ZshSyntaxError("Invalid `zsh` command {cmd!r}: {reason}") from None
 
-def zsh(cmd: str, *, inherit_env=True, check=False, trim_trailing_newline=True) -> str:
+def zsh(cmd: str, *, inherit_env=True, check=False, pipe=True, trim_trailing_newline=True) -> str:
     _check_syntax(cmd) # Verify its valid syntax
     # NOTE: Use xonsh's environment
     #
@@ -98,7 +141,7 @@ def zsh(cmd: str, *, inherit_env=True, check=False, trim_trailing_newline=True) 
     env.update(FAKE_ENV)
     try:
         # NOTE: Inherit stderr. This matches behavior of zsh's $(...)
-        s = run(['zsh', '-c', cmd], env=env, check=True, stdout=PIPE, encoding='utf-8').stdout
+        s = run(['zsh', '-c', cmd], env=env, check=True, stdout=PIPE if pipe else None, encoding='utf-8').stdout
         if trim_trailing_newline and s[-1] == '\n':
             s = s[:-1]
         return s

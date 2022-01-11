@@ -8,6 +8,7 @@ from typing import Optional, Union, Callable
 from click import ClickException
 
 from .ast import *
+from . import translate
 
 class TranslationError(RuntimeError):
     location: Optional[Location]
@@ -40,9 +41,8 @@ class ShellParseError(TranslationError):
 
 WORD_PATTERN = re.compile(r"\w+")
 WHITESPACE_PATTERN = re.compile(r"\s*")
-# Things that we allow outside a quote
-# NOTE: We do not include '*' or any whitespace, because I dont' wanna deal with glob expansion
-_SHELL_LITERAL_PATTERN = re.compile(r"[\w\~\/\\\.\-]+")
+# NOTE: We only allow what the translator considers safe
+SHELL_LITERAL_PATTERN = translate.SAFE_LITERAL_PATTERN
 class ShellParser:
     """A recursive decent parser for a limited subset of `zsh`.
 
@@ -208,7 +208,7 @@ class ShellParser:
                 )
             else:
                 raise ShellParseError("Raw $VAR is not supported", self.location)
-        elif (m := _SHELL_LITERAL_PATTERN.match(remaining)):
+        elif (m := SHELL_LITERAL_PATTERN.match(remaining)):
             assert m.span()[0] == 0
             self._offset += m.span()[1]
             assert self.location.offset == self._offset
@@ -373,5 +373,6 @@ class ShellParser:
 _BUILTIN_STMT_DISPATCH = {
     "export": ShellParser.assignment_stmt,
     "local": ShellParser.assignment_stmt,
+    "alias": ShellParser.assignment_stmt, # treat alias as a special case of assignment
     "if": ShellParser.conditional_stmt,
 }

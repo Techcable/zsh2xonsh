@@ -80,6 +80,7 @@ class TestExpr(Expression):
 class AssignmentKind(Enum):
     EXPORT = "export"
     LOCAL = "local"
+    ALIAS = "alias"
 
 @dataclass
 class AssignmentStmt(Statement):
@@ -95,6 +96,21 @@ class AssignmentStmt(Statement):
                 return f"${self.target}={self.value.translate()}"
         elif self.kind == AssignmentKind.LOCAL:
             return f"{self.target}={self.value.translate()}"
+        elif self.kind == AssignmentKind.ALIAS:
+            alias_impl = None
+            if isinstance(self.value, LiteralExpr):
+                # TODO: Pre-expands `~` ahead of time, when it really should be done at invocation time
+                alias_impl = f'[{self.value.translate()}]'
+            elif isinstance(self.value, QuotedExpression):
+                if translate.can_safely_be_split(self.value.inside_text):
+                    alias_impl = '[' + ', '.join(map(repr, self.value.inside_text.split(' '))) + ']'
+                else:
+                    alias_impl = f"runtime.zsh_impl_complex_alias({self.value.inside_text!r})"
+            else:
+                raise ShellParseError("Don't know how to translate alias target", self.value.span.start)
+            if not translate.is_simple_quoted(self.target):
+                raise ShellParseError("Alias target too complex", self.span.start)
+            return f"aliases[{self.target!r}]={alias_impl}"
         else:
             raise AssertionError
 
