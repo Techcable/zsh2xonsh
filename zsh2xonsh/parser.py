@@ -392,7 +392,6 @@ class ShellParser:
             if self.remaining_line.startswith('}'):
                 self._offset += 1
                 end = self.location
-                print("Found closing", self.location)
                 break
             else:
                 stmt = self.statement()
