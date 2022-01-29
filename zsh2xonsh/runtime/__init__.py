@@ -54,7 +54,7 @@ class ZshContext:
 
     def zsh_test(self, test: str) -> bool:
         try:
-            self.zsh(f"[[ {test} ]]")
+            self.zsh(f"[[ {test} ]]", check=True)
         except ZshSyntaxError:
             raise
         except ZshError as e:
@@ -172,6 +172,7 @@ class ZshContext:
             if check:
                 raise ZshError("Failed to execute {cmd!r}", returncode=cause.returncode) from cause
             else:
+                # TODO: Is it a good idea to swallow errors like this?
                 return None
 
 
