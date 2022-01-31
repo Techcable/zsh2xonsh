@@ -20,18 +20,24 @@ from . import translate_to_xonsh
     help="Assume the runtime is already present (instead of assuming it's already present)"
 )
 @click.option(
+    'stdin', '--stdin', is_flag=True,
+    help="Read input from stdin"
+)
+@click.option(
     'assume_context', '--assume-context', '-c', is_flag=True,
 )
 @click.argument('input_file', required=False)
-def zsh2xonsh(input_file: str, extra_builtins, cmd=None, validate=False, assume_runtime=False, assume_context=False):
+def zsh2xonsh(input_file: str, extra_builtins, cmd=None, validate=False, assume_runtime=False, assume_context=False, stdin=False):
     """Translates zsh to xonsh scripts"""
     if cmd is not None:
         text = cmd
     elif input_file is not None:
         with open(input_file, 'rt') as f:
             text = f.read()
+    elif stdin:
+        text = sys.stdin.read()
     else:
-        raise click.ClickException("Must specifiy either `--cmd` or an input file")
+        raise click.ClickException("Must specifiy either `--cmd` `--stdin` or an input file")
     try:
         output = translate_to_xonsh(text, extra_builtins=extra_builtins)
     except KeyboardInterrupt as e:
