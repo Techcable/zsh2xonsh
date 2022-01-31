@@ -42,9 +42,20 @@ INTEGER_PATTERN = re.compile(r"[\d](\d|_\d)*")
 def is_valid_integer(s: str) -> bool:
     return INTEGER_PATTERN.fullmatch(s) is not None
 
+# Other path-like variables that do not end in 'PATH'
+_OTHER_PATH_LIKE_VARS = frozenset({'BASH_COMPLETIONS',})
 # Variables that are traditonally strings,
-# that xonsh turns into lists. The primary example is $PATH
-PATH_LIKE_VARS = frozenset(["PATH",])
+# that xonsh turns into PATH lists. The primary example is $PATH
+#
+# See xonsh documentation on environment variables: https://xon.sh/envvars.html
+#
+# This is automatically true for any variable that ends with 'PATH'.
+# See here: https://xon.sh/envvars.html#w-path
+def is_path_like_var(name: str) -> bool:
+    return name.endswith("PATH") or name in _OTHER_PATH_LIKE_VARS
+
+assert is_path_like_var("PATH")
+assert not is_path_like_var("FOO")
 
 def can_safely_be_split(text):
     """Detrmines if something can safely be split along spaces.

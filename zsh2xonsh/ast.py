@@ -90,7 +90,7 @@ class AssignmentStmt(Statement):
 
     def translate(self) -> str:
         if self.kind == AssignmentKind.EXPORT:
-            if self.target in translate.PATH_LIKE_VARS:
+            if translate.is_path_like_var(self.target):
                 return f"ctx.assign_path_var(${self.target},{self.value.translate()},var={self.target!r})"
             else:
                 return f"${self.target}={self.value.translate()}"
