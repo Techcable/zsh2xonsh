@@ -1,6 +1,33 @@
 """Utilites for translation"""
+from __future__ import annotations
 import ast as pyast
 import re
+
+from dataclasses import dataclass, field
+
+@dataclass
+class Settings:
+    """Be strict about preserving the types of all environment variables (not just PATH variables)"""
+    strict_env_types = False
+    """The set of other path like variables that do not end with `PATH`"""
+    other_path_like_vars: set[str] = field(default_factory={'BASH_COMPLETIONS',}.copy)
+
+    def is_path_like_var(self, name: str) -> bool:
+        """Detect if the variable should be treated like a $PATH EnvList
+        See xonsh documentation on environment variables: https://xon.sh/envvars.html
+
+        This is automatically true for any variable that ends with 'PATH'.
+        See here: https://xon.sh/envvars.html#w-path
+        """
+        return name.endswith("PATH") or name in self.other_path_like_vars
+
+    @staticmethod
+    def default() -> Settings:
+        return Settings()
+
+assert Settings.default().is_path_like_var("PATH")
+assert not Settings.default().is_path_like_var("FOO")
+assert Settings.default().is_path_like_var("BASH_COMPLETIONS")
 
 SAFE_QUOTED_STRING = re.compile(r"[\w\-\/]*")
 def is_simple_quoted(s: str) -> bool:
@@ -41,21 +68,6 @@ def is_simple_literal(s, *, smart=False):
 INTEGER_PATTERN = re.compile(r"[\d](\d|_\d)*")
 def is_valid_integer(s: str) -> bool:
     return INTEGER_PATTERN.fullmatch(s) is not None
-
-# Other path-like variables that do not end in 'PATH'
-_OTHER_PATH_LIKE_VARS = frozenset({'BASH_COMPLETIONS',})
-# Variables that are traditonally strings,
-# that xonsh turns into PATH lists. The primary example is $PATH
-#
-# See xonsh documentation on environment variables: https://xon.sh/envvars.html
-#
-# This is automatically true for any variable that ends with 'PATH'.
-# See here: https://xon.sh/envvars.html#w-path
-def is_path_like_var(name: str) -> bool:
-    return name.endswith("PATH") or name in _OTHER_PATH_LIKE_VARS
-
-assert is_path_like_var("PATH")
-assert not is_path_like_var("FOO")
 
 def can_safely_be_split(text):
     """Detrmines if something can safely be split along spaces.

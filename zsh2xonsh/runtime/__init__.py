@@ -99,14 +99,69 @@ class ZshContext:
         # NOTE: It's up to the compiler/translator to avoid unessicary calls to `zsh_expand_quote`
         return self.zsh(f'echo "{quoted}"')
 
-    def assign_path_var(self, target, new_path, var="PATH"):
+    def assign_typed_var(self, variable_name, new_value):
         """
-        This function is nessicary because xonsh's $PATH is a list, while in the shell it's a string
+        Update the value of the specified variable, carefuly converting from
+        the shell lossely typed strings -> xonsh's strongly typed values.
 
-        xonsh's approach is obviously better, but it makes assigning things more difficult on our part ;)
+        This function is primarily nessicary because xonsh's $PATH is a list,
+        while in the shell it's a string.
+
+        In that case, instead of blindly assigning $PATH as if it was a string,
+        this translates it to a series of `list.append` and `list.insert` calls.
+
+
+        xonsh's approach of typed variables is obviously better than the traditional shell approach,
+        but it makes compatibility more difficult on our part ;)
+    
+        In addition to $PATH variables, xonsh has some other examples of typed variables as well.
+        In that case, this function makes a best-effort approach to preserve existing types.
+
+        For example, if `$FOO=True` in xonsh,
+        then calling `assign_typed_var(FOO, "0")`
+        will set $FOO=False (preserving the type) instead of blindly setting
+        $FOO="0". This is useful for converting between the zsh and xonsh worlds.
         """
+        assert isinstance(new_value, str), f"Expected a string, not a {type(new_value)!r}"
+        def assign_untyped():
+            """Fallback to directly assigning as a string"""
+            xonshi.assign_env_var(variable_name, new_value)
+        try:
+            old_value = xonshi.get_typed_env_var(variable_name, allow_unknown_type=True)
+        except KeyError: 
+            # Variable is uninitialized, so just fallback to setting as string.
+            #
+            # This will not preserve types of int/bool variables,
+            # however there is no clear context to set it to.
+            #
+            # In xonsh, this will correctly initialize $PATH variables to EnvVar
+            assign_untyped()
+            return
+        if old_value.kind is None:
+            # If unable to detect type of the previous value,
+            # fallback to setting as string
+            assign_untyped()
+        elif old_value.kind == xonshi.VarKind.PATH:
+            # Special handling for path variables
+            self._assign_path_var(variable_name, old_value.value, new_value)
+        else:
+            # Be careful to preserve the original type of the variable wherever possible
+            try:
+                typed_value = old_value.kind.parse(new_value)
+            except (TypeError, ValueError):
+                # If a parse error occurs, fallback to untyped behavior
+                #
+                # This will implicitly change the type of the variable to string,
+                # but is better than ignoring the assignment completely 
+                # or throwing an error
+                assign_untyped()
+                return
+            xonshi.assign_env_var(variable_name, typed_value)
+
+    def _assign_path_var(self, var_name: str, target, new_path: str):
         assert isinstance(target, collections.abc.MutableSequence)
-        old_path = self.zsh_expand_quote(f"${var}")
+        # Expand the old path variable as a string
+        old_path = self.zsh_expand_quote(f"${var_name}")
         # We don't support removal. Only addition at the beginning (prefix) or end (suffix)
         #
         # This is a poor man's diff

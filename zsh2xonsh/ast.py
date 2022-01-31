@@ -21,7 +21,7 @@ class Statement(metaclass=ABCMeta):
     span: Span
 
     @abstractmethod
-    def translate(self) -> str:
+    def translate(self, settings: translate.Settings) -> str:
         pass
 
 @dataclass
@@ -29,22 +29,22 @@ class Expression(metaclass=ABCMeta):
     span: Span
 
     @abstractmethod
-    def translate(Self) -> str:
+    def translate(self, settings: translate.Settings) -> str:
         pass
 
 @dataclass
 class ExprStmt(Statement):
     expr: Expression
 
-    def translate(self) -> str:
-        return self.expr.translate()
+    def translate(self, settings: translate.Settings) -> str:
+        return self.expr.translate(settings)
 
 @dataclass
 class QuotedExpression(Expression):
     # The text on the inside, without being interpreted
     inside_text: str
 
-    def translate(self) -> str:
+    def translate(self, settings: translate.Settings) -> str:
         txt = self.inside_text
         if translate.is_simple_quoted(txt):
             return repr(txt)
@@ -55,14 +55,14 @@ class QuotedExpression(Expression):
 class SubcommandExpr(Expression):
     command: str
 
-    def translate(self) -> str:
+    def translate(self, settings: translate.Settings) -> str:
         return f"ctx.zsh({self.command!r})"
 
 @dataclass
 class LiteralExpr(Expression):
     text: str
 
-    def translate(self) -> str:
+    def translate(self, settings: translate.Settings) -> str:
         if self.text.startswith('~'):
             return f"ctx.expand_literal({self.text!r})"
         elif translate.is_valid_integer(self.text):
@@ -74,7 +74,7 @@ class LiteralExpr(Expression):
 class TestExpr(Expression):
     text: str
 
-    def translate(self) -> str:
+    def translate(self, settings: translate.Settings) -> str:
         return f"ctx.zsh_test({self.text!r})"
 
 class AssignmentKind(Enum):
@@ -88,19 +88,19 @@ class AssignmentStmt(Statement):
     target: str
     value: Expression
 
-    def translate(self) -> str:
+    def translate(self, settings: translate.Settings) -> str:
         if self.kind == AssignmentKind.EXPORT:
-            if translate.is_path_like_var(self.target):
-                return f"ctx.assign_path_var(${self.target},{self.value.translate()},var={self.target!r})"
+            if settings.is_path_like_var(self.target) or settings.strict_env_types:
+                return f"ctx.assign_typed_var({self.target!r},{self.value.translate(settings)})"
             else:
-                return f"${self.target}={self.value.translate()}"
+                return f"${self.target}={self.value.translate(settings)}"
         elif self.kind == AssignmentKind.LOCAL:
-            return f"{self.target}=ctx.assign_local({self.target!r}, {self.value.translate()})"
+            return f"{self.target}=ctx.assign_local({self.target!r}, {self.value.translate(settings)})"
         elif self.kind == AssignmentKind.ALIAS:
             alias_impl = None
             if isinstance(self.value, LiteralExpr):
                 # TODO: Pre-expands `~` ahead of time, when it really should be done at invocation time
-                alias_impl = f'[{self.value.translate()}]'
+                alias_impl = f'[{self.value.translate(settings)}]'
             elif isinstance(self.value, QuotedExpression):
                 if translate.can_safely_be_split(self.value.inside_text):
                     alias_impl = '[' + ', '.join(map(repr, self.value.inside_text.split(' '))) + ']'
@@ -120,10 +120,10 @@ class ConditionalStmt(Statement):
     condition: Expression
     then: list[Statement]
 
-    def translate(self) -> str:
+    def translate(self, settings: translate.Settings) -> str:
         return '\n'.join([
-            f"if {self.condition.translate()}:",
-            *((' ' * 4) + stmt.translate() for stmt in self.then)
+            f"if {self.condition.translate(settings)}:",
+            *((' ' * 4) + stmt.translate(settings) for stmt in self.then)
         ])
 
 
@@ -132,7 +132,7 @@ class FunctionDeclaration(Statement):
     name: str
     body: list[Statement]
 
-    def translate(self) -> str:
+    def translate(self, settings: translate.Settings) -> str:
         # This is the most complex of them all
         # This translates into a python function that accepts variable positional arguments
         #
@@ -145,7 +145,7 @@ class FunctionDeclaration(Statement):
         ]
         body = [
             # NOTE: This is effectively `flatten`. Used because stmt.translate() might itself be multiline
-            *itertools.chain.from_iterable((stmt.translate().splitlines() for stmt in self.body))
+            *itertools.chain.from_iterable((stmt.translate(settings).splitlines() for stmt in self.body))
         ]
         return '\n'.join([*header, *((indent * 2) + b for b in body)])
 
@@ -164,7 +164,7 @@ class FunctionInvocation(Statement):
     args: list[Expression]
     kind: FunctionInvocationKind
 
-    def translate(self) -> str:
+    def translate(self, settings: translate.Settings) -> str:
         def format_call(name, args, **kwargs):
             if len(args) <= 1:
                 sep = ""
@@ -192,7 +192,7 @@ class FunctionInvocation(Statement):
             kwargs['parent_ctx'] = 'ctx'
         else:
             raise AssertionError
-        args.extend((arg.translate() for arg in self.args))
+        args.extend((arg.translate(settings) for arg in self.args))
         return format_call(
             actual_name, args, **kwargs
         )

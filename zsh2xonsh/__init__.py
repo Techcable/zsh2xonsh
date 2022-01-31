@@ -23,7 +23,7 @@ The `ctx` is used to resolve local variables.
 The whole runtime and generator is all pure-python (except for the actual generated code).
 """
 
-def translate_to_xonsh(zsh: str, *, extra_builtins: set[str] = frozenset()) -> str:
+def translate_to_xonsh(zsh: str, *, settings=None, extra_builtins: set[str] = frozenset()) -> str:
     """Translate the specified zsh code to xonsh
 
     If a parse error occurs (or an unsuppored feature is encountered),
@@ -33,11 +33,14 @@ def translate_to_xonsh(zsh: str, *, extra_builtins: set[str] = frozenset()) -> s
     (assumed to be provided to the code).
     """
     from .parser import ShellParser
+    from . import translate
+    if settings is None:
+        settings = translate.Settings.default()
     parser = ShellParser(zsh.splitlines(), extra_builtins=frozenset(extra_builtins))
     stmts = []
     while (stmt := parser.statement()) is not None:
         stmts.append(stmt)
-    return '\n'.join([stmt.translate() for stmt in stmts])
+    return '\n'.join([stmt.translate(settings) for stmt in stmts])
 
 def translate_to_xonsh_and_eval(zsh: str, *, extra_builtins: dict[str, object] = None):
     """Translate the specified zsh code to xonsh,
