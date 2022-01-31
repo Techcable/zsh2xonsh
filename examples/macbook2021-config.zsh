@@ -24,7 +24,9 @@
 #
 # Either way will work correctly
 function extend_path() {
-    export PATH="$PATH:$1"
+    if [[ -d "" ]]; then
+        export PATH="$PATH:$1"
+    fi
 }
 
 # Automatically uses the default browser

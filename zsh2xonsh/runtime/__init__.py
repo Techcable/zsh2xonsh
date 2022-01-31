@@ -166,7 +166,7 @@ class ZshContext:
         #
         # This is a poor man's diff
         if old_path not in new_path:
-            raise ZshError(f"Changes between old and new ${var} are too complicated: {old_path!r} -> {new_path!r}")
+            raise ZshError(f"Changes between old and new ${var_name} are too complicated: {old_path!r} -> {new_path!r}")
         offset = new_path.find(old_path)
         prefix = new_path[:offset]
         suffix = new_path[offset+len(old_path):]
