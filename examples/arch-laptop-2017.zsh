@@ -4,6 +4,14 @@
 
 export BROWSER="/usr/bin/firefox"
 
+# NOTE: You could provide this function as an "extra builtin",
+# or you could implement it yourself here
+#
+# Either way will work correctly
+function extend_path() {
+    export PATH="$PATH:$1"
+}
+
 extend_path ~/.yarn/bin
 extend_path ~/.cargo/bin
 extend_path ~/go/bin

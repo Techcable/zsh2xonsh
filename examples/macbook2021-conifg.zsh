@@ -19,6 +19,13 @@
 # into Python.
 
 
+# NOTE: You could provide this function as an "extra builtin",
+# or you could implement it yourself here
+#
+# Either way will work correctly
+function extend_path() {
+    export PATH="$PATH:$1"
+}
 
 # Automatically uses the default browser
 export BROWSER="/usr/bin/open"
