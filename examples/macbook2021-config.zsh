@@ -24,7 +24,7 @@
 #
 # Either way will work correctly
 function extend_path() {
-    if [[ -d "" ]]; then
+    if [[ -d "$1" ]]; then
         export PATH="$PATH:$1"
     fi
 }
