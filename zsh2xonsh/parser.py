@@ -292,7 +292,6 @@ class ShellParser:
                 if next_closing < 0:
                     # no opening and no closing
                     try_advance()
-                    print(level, "advancing")
                     continue
                 else:
                     # no opening, but a closing
