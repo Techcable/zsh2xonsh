@@ -17,7 +17,8 @@ setup(
     install_requires=[
         'click', # For argument processing
     ],
-    packages=find_packages(include=['zsh2xonsh*']),
+    package_dir={'': 'src'},
+    packages=find_packages('src', include=['zsh2xonsh*']),
     entry_points={
         "console_scripts": {
             "zsh2xonsh = zsh2xonsh.__main__:zsh2xonsh"
