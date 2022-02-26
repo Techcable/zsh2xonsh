@@ -304,13 +304,15 @@ class ShellParser:
             else:
                 # Both an opening and a closing. Which comes first?
                 if next_opening < next_closing:
-                    # opening, then closing. They effectively cancel
-                    idx = next_closing + len(closing)
+                    # opening first
+                    idx = next_opening + len(opening)
+                    level += 1
                     continue
                 else:
+                    # closing first
                     assert next_opening > next_closing
                     level -= 1
-                    idx += next_closing + len(closing)
+                    idx = next_closing + len(closing)
             if level == 0:
                 self._offset = idx
                 end_loc = self.location
