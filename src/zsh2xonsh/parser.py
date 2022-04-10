@@ -3,6 +3,7 @@
 Please shoot me"""
 
 import re
+from enum import Enum
 from typing import Optional, Union, Callable
 
 from click import ClickException
@@ -32,6 +33,20 @@ class TranslationError(RuntimeError):
         if self.location is not None:
             msg += f" @ {self.location}"
         return msg
+
+class ExpressionContext(Enum):
+    # Interpret unquoted values as command
+    #
+    # Example:
+    # if foo; then echo "foo"; fi
+    # Then `foo` is interpreted as a command
+    COMMAND = "command"
+    # Intepret unquoted values as a string
+    #
+    # Example:
+    # local var=foo;
+    # echo $var; # prints "foo"
+    VALUE = "value"
 
 
 class ShellParseError(TranslationError):
@@ -199,7 +214,8 @@ class ShellParser:
         end = self.location
         return AssignmentStmt(Span(start, end), kind, target, value)
 
-    def expression(self, *, inside_quotes: bool=True, required: bool = False) -> Expression:
+    def expression(self, *, ctx: ExpressionContext=ExpressionContext.VALUE, inside_quotes: bool=True, required: bool = False) -> Expression:
+        assert ctx in {ExpressionContext.VALUE, ExpressionContext.COMMAND}
         self.skip_whitespace()
         start = self.location
         remaining = self.remaining_line
@@ -219,14 +235,20 @@ class ShellParser:
                 )
             else:
                 raise ShellParseError("Raw $VAR is not supported", self.location)
+        elif remaining.startswith("[["):
+            test = self.parse_balanced(opening='[[', closing=']]')
+            return TestCommandExpr(span=Span(start, self.location), text=f"[[ {test} ]]")
+        elif ctx == ExpressionContext.COMMAND:
+            # Interpret remaining as a command
+            #
+            # TODO: Skip over ';' inside string :(
+            text = self.take_while(lambda c: c != ";")
+            return TestCommandExpr(span=Span(start, self.location), text=text)
         elif (m := SHELL_LITERAL_PATTERN.match(remaining)):
             assert m.span()[0] == 0
             self._offset += m.span()[1]
             assert self.location.offset == self._offset
             return LiteralExpr(Span(start, self.location), self._current_line[start.offset:self._offset])
-        elif remaining.startswith("[["):
-            test = self.parse_balanced(opening='[[', closing=']]')
-            return TestExpr(span=Span(start, self.location), text=test)
         elif remaining.startswith('"'):
             start = self.location
             s = self.parse_string()
@@ -343,7 +365,7 @@ class ShellParser:
         start_word = self.take_word()
         if start_word != "if":
             raise ShellParseError("Expected an `if`", self.location)
-        condition = self.expression();
+        condition = self.expression(ctx=ExpressionContext.COMMAND);
         self.skip_whitespace()
         if not self.remaining_line.startswith(";"):
             raise ShellParseError("Expected a semicolon", self.location)

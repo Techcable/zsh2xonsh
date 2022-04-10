@@ -71,11 +71,11 @@ class LiteralExpr(Expression):
             return f"{self.text!r}"
 
 @dataclass
-class TestExpr(Expression):
+class TestCommandExpr(Expression):
     text: str
 
     def translate(self, settings: translate.Settings) -> str:
-        return f"ctx.zsh_test({self.text!r})"
+        return f"ctx.zsh_test_command({self.text!r})"
 
 class AssignmentKind(Enum):
     EXPORT = "export"

@@ -52,9 +52,9 @@ class ZshContext:
         self._locals[name] = str(value) # Everything must be normalized to string for zsh :(
         return value
 
-    def zsh_test(self, test: str) -> bool:
+    def zsh_test_command(self, test: str) -> bool:
         try:
-            self.zsh(f"[[ {test} ]]", check=True)
+            self.zsh(test, check=True)
         except ZshSyntaxError:
             raise
         except ZshError as e:
