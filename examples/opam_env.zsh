@@ -1,0 +1,4 @@
+OPAM_SWITCH_PREFIX='/home/example/.opam/default'; export OPAM_SWITCH_PREFIX;
+CAML_LD_LIBRARY_PATH='/home/example/.opam/default/lib/stublibs:/opt/homebrew/lib/ocaml/stublibs:/opt/homebrew/lib/ocaml'; export CAML_LD_LIBRARY_PATH;
+OCAML_TOPLEVEL_PATH='/home/example/.opam/default/lib/toplevel'; export OCAML_TOPLEVEL_PATH;
+PATH='/home/example/.opam/default/bin:/Applications/Keybase.app/Contents/SharedSupport/bin:/opt/homebrew/Frameworks/Python.framework/Versions/Current/bin:/home/example/Library/Python/3.10/bin:/home/example/Library/Application Support/Coursier/bin:/Library/Frameworks/Python.framework/Versions/3.11/bin:/opt/senpai/bin:/opt/homebrew/Cellar/janet/1.24.1/bin:/opt/homebrew/opt/python@3.10/bin:/opt/homebrew/opt/lua@5.3/bin:/opt/homebrew/opt/llvm/bin:/home/example/.cargo/bin:/home/example/bin:/home/example/git/dotfiles/scripts:/opt/homebrew/bin:/opt/homebrew/sbin:/Applications/kitty.app/Contents/MacOS:/usr/bin:/bin:/usr/sbin:/sbin'; export PATH;

@@ -188,6 +188,7 @@ class ShellParser:
 
     def _statement(self) -> Optional[Statement]:
         self.skip_whitespace_lines()
+        start = self.location
         first_word = self.peek_word()
         if first_word is None:
             return None
@@ -199,7 +200,17 @@ class ShellParser:
         try:
             return self._stmt_dispatch[first_word](self)
         except KeyError:
-            raise ShellParseError(f"Unknown statement: {first_word!r}", self.location) from None
+            pass # Not a keyword, treat as a regular identifier..
+        name = self.take_word()
+        self.take_while(WHITESPACE_PATTERN)
+        if self.remaining_line.startswith("="):
+            self._offset += 1
+            self.take_while(WHITESPACE_PATTERN)
+            value = self.expression(required=True)
+            end = self.location
+            return AssignmentStmt(Span(start, end), None, name, value)
+        else:
+            raise ShellParseError(f"Unexpected char `{self.remaining_line[:1]}` after {name!r}", self.location)
 
     def assignment_stmt(self) -> AssignmentStmt:
         start = self.location
@@ -207,10 +218,13 @@ class ShellParser:
         self.take_while(WHITESPACE_PATTERN)
         target= self.take_word()
         self.take_while(WHITESPACE_PATTERN)
-        if not self.remaining_line.startswith("="):
+        if self.remaining_line.startswith("="):
+            self._offset += 1
+            value = self.expression(required=True)
+        elif kind == AssignmentKind.EXPORT:
+            value = None
+        else:
             raise ShellParseError(f"Expected an `=`", self.location)
-        self._offset += 1
-        value = self.expression(required=True)
         end = self.location
         return AssignmentStmt(Span(start, end), kind, target, value)
 
@@ -249,28 +263,30 @@ class ShellParser:
             self._offset += m.span()[1]
             assert self.location.offset == self._offset
             return LiteralExpr(Span(start, self.location), self._current_line[start.offset:self._offset])
-        elif remaining.startswith('"'):
+        elif remaining[0] in ('"', '\''):
+            style = QuoteStyle(remaining[0])
             start = self.location
-            s = self.parse_string()
+            s = self.parse_string(style)
             end = self.location
-            return QuotedExpression(Span(start, end), s)
+            return QuotedExpression(Span(start, end), s, style)
         elif remaining.startswith(';'):
             return None # Consider end of expressions (because this terminates statement)
         else:
             raise ShellParseError("Unable to parse expression", self.location)
 
-    def parse_string(self) -> str:
+    def parse_string(self, style: QuoteStyle) -> str:
         """Parse a string.
 
         This does not interpret escape codes. It passes them through as-is."""
         start = self.location
         remaining = self.remaining_line
-        assert remaining.startswith('"')
+        quote = str(style)
+        assert remaining.startswith(quote)
         idx = 1
         while True:
-            next_quote = remaining.find('"', idx)
+            next_quote = remaining.find(quote, idx)
             if next_quote < 0:
-                raise ShellParseError("Unable to find closing quote `\"` (NOTE: Multi-line strings are unsupporteed)", start)
+                raise ShellParseError("Unable to find closing quote `{quote}` (NOTE: Multi-line strings are unsupporteed)", start)
             elif remaining[next_quote - 1] == '\\' and (next_quote < 2 or remaining[next_quote - 2] != '\\'):
                 # It's an escaped quote
                 idx = next_quote + 1

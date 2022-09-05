@@ -3,6 +3,7 @@ import itertools
 from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
+from typing import Optional
 
 from . import translate
 
@@ -39,17 +40,25 @@ class ExprStmt(Statement):
     def translate(self, settings: translate.Settings) -> str:
         return self.expr.translate(settings)
 
+class QuoteStyle(Enum):
+    SINGLE = "'"
+    DOUBLE = '"'
+
+    def __str__(self):
+        return self.value
+
 @dataclass
 class QuotedExpression(Expression):
     # The text on the inside, without being interpreted
     inside_text: str
+    style: QuoteStyle
 
     def translate(self, settings: translate.Settings) -> str:
         txt = self.inside_text
         if translate.is_simple_quoted(txt):
             return repr(txt)
         else:
-            return f"ctx.zsh_expand_quote({txt!r})"
+            return f"ctx.zsh_expand_quote({self.style}{txt}{self.style})"
 
 @dataclass
 class SubcommandExpr(Expression):
@@ -84,17 +93,28 @@ class AssignmentKind(Enum):
 
 @dataclass
 class AssignmentStmt(Statement):
-    kind: AssignmentKind
+    kind: Optional[AssignmentKind]
     target: str
-    value: Expression
+    value: Optional[Expression]
+
+    def __post_init__(self):
+        if self.value is None:
+            assert self.kind == AssignmentKind.EXPORT, f"Assignment {kind} must have value"
 
     def translate(self, settings: translate.Settings) -> str:
         if self.kind == AssignmentKind.EXPORT:
-            if settings.is_path_like_var(self.target) or settings.strict_env_types:
-                return f"ctx.assign_typed_var({self.target!r},{self.value.translate(settings)})"
+            if self.value is None:
+                translated_value = f"ctx.zsh_expand_quote(\"${{{self.target}}}\")"
             else:
-                return f"${self.target}={self.value.translate(settings)}"
-        elif self.kind == AssignmentKind.LOCAL:
+                translated_value = f"{self.value.translate(settings)}"
+            if settings.is_path_like_var(self.target) or settings.strict_env_types:
+                return f"ctx.assign_typed_var({self.target!r},{translated_value})"
+            else:
+                return f"${self.target}={translated_value}"
+            # Treat 'default' scope as local
+            #
+            # TODO: This is incorrect
+        elif self.kind in (AssignmentKind.LOCAL, None):
             return f"{self.target}=ctx.assign_local({self.target!r}, {self.value.translate(settings)})"
         elif self.kind == AssignmentKind.ALIAS:
             alias_impl = None
