@@ -7,15 +7,18 @@ from typing import Optional
 
 from . import translate
 
+
 @dataclass
 class Location:
     line: int
     offset: int
 
+
 @dataclass
 class Span:
     start: Location
     end: Location
+
 
 @dataclass
 class Statement(metaclass=ABCMeta):
@@ -25,6 +28,7 @@ class Statement(metaclass=ABCMeta):
     def translate(self, settings: translate.Settings) -> str:
         pass
 
+
 @dataclass
 class Expression(metaclass=ABCMeta):
     span: Span
@@ -33,6 +37,7 @@ class Expression(metaclass=ABCMeta):
     def translate(self, settings: translate.Settings) -> str:
         pass
 
+
 @dataclass
 class ExprStmt(Statement):
     expr: Expression
@@ -40,12 +45,14 @@ class ExprStmt(Statement):
     def translate(self, settings: translate.Settings) -> str:
         return self.expr.translate(settings)
 
+
 class QuoteStyle(Enum):
     SINGLE = "'"
     DOUBLE = '"'
 
     def __str__(self):
         return self.value
+
 
 @dataclass
 class QuotedExpression(Expression):
@@ -60,6 +67,7 @@ class QuotedExpression(Expression):
         else:
             return f"ctx.zsh_expand_quote({self.style}{txt}{self.style})"
 
+
 @dataclass
 class SubcommandExpr(Expression):
     command: str
@@ -67,17 +75,19 @@ class SubcommandExpr(Expression):
     def translate(self, settings: translate.Settings) -> str:
         return f"ctx.zsh({self.command!r})"
 
+
 @dataclass
 class LiteralExpr(Expression):
     text: str
 
     def translate(self, settings: translate.Settings) -> str:
-        if self.text.startswith('~'):
+        if self.text.startswith("~"):
             return f"ctx.expand_literal({self.text!r})"
         elif translate.is_valid_integer(self.text):
             return f"{int(self.text)}"
         else:
             return f"{self.text!r}"
+
 
 @dataclass
 class TestCommandExpr(Expression):
@@ -86,10 +96,12 @@ class TestCommandExpr(Expression):
     def translate(self, settings: translate.Settings) -> str:
         return f"ctx.zsh_test_command({self.text!r})"
 
+
 class AssignmentKind(Enum):
     EXPORT = "export"
     LOCAL = "local"
     ALIAS = "alias"
+
 
 @dataclass
 class AssignmentStmt(Statement):
@@ -99,12 +111,14 @@ class AssignmentStmt(Statement):
 
     def __post_init__(self):
         if self.value is None:
-            assert self.kind == AssignmentKind.EXPORT, f"Assignment {kind} must have value"
+            assert (
+                self.kind == AssignmentKind.EXPORT
+            ), f"Assignment {kind} must have value"
 
     def translate(self, settings: translate.Settings) -> str:
         if self.kind == AssignmentKind.EXPORT:
             if self.value is None:
-                translated_value = f"ctx.zsh_expand_quote(\"${{{self.target}}}\")"
+                translated_value = f'ctx.zsh_expand_quote("${{{self.target}}}")'
             else:
                 translated_value = f"{self.value.translate(settings)}"
             if settings.is_path_like_var(self.target) or settings.strict_env_types:
@@ -120,20 +134,29 @@ class AssignmentStmt(Statement):
             alias_impl = None
             if isinstance(self.value, LiteralExpr):
                 # TODO: Pre-expands `~` ahead of time, when it really should be done at invocation time
-                alias_impl = f'[{self.value.translate(settings)}]'
+                alias_impl = f"[{self.value.translate(settings)}]"
             elif isinstance(self.value, QuotedExpression):
                 if translate.can_safely_be_split(self.value.inside_text):
-                    alias_impl = '[' + ', '.join(map(repr, self.value.inside_text.split(' '))) + ']'
+                    alias_impl = (
+                        "["
+                        + ", ".join(map(repr, self.value.inside_text.split(" ")))
+                        + "]"
+                    )
                 else:
                     # TODO: This won't have acess to other aliases
-                    alias_impl = f"ctx.zsh_impl_complex_alias({self.value.inside_text!r})"
+                    alias_impl = (
+                        f"ctx.zsh_impl_complex_alias({self.value.inside_text!r})"
+                    )
             else:
-                raise ShellParseError("Don't know how to translate alias target", self.value.span.start)
+                raise ShellParseError(
+                    "Don't know how to translate alias target", self.value.span.start
+                )
             if not translate.is_simple_quoted(self.target):
                 raise ShellParseError("Alias target too complex", self.span.start)
             return f"aliases[{self.target!r}]={alias_impl}"
         else:
             raise AssertionError
+
 
 @dataclass
 class ConditionalStmt(Statement):
@@ -141,10 +164,12 @@ class ConditionalStmt(Statement):
     then: list[Statement]
 
     def translate(self, settings: translate.Settings) -> str:
-        return '\n'.join([
-            f"if {self.condition.translate(settings)}:",
-            *((' ' * 4) + stmt.translate(settings) for stmt in self.then)
-        ])
+        return "\n".join(
+            [
+                f"if {self.condition.translate(settings)}:",
+                *((" " * 4) + stmt.translate(settings) for stmt in self.then),
+            ]
+        )
 
 
 @dataclass
@@ -157,26 +182,29 @@ class FunctionDeclaration(Statement):
         # This translates into a python function that accepts variable positional arguments
         #
         # Each arg is unpacked into a local $1 $2 $3 accessible from inside the function
-        indent = ' ' * 4
+        indent = " " * 4
         # TODO: This could probably be implemented with some sort of decorator
         header = [
             f"def {self.name}(*args, parent_ctx):",
-            f"{indent}with parent_ctx.begin_function({self.name!r}, args) as ctx:"
+            f"{indent}with parent_ctx.begin_function({self.name!r}, args) as ctx:",
         ]
         body = [
             # NOTE: This is effectively `flatten`. Used because stmt.translate() might itself be multiline
-            *itertools.chain.from_iterable((stmt.translate(settings).splitlines() for stmt in self.body))
+            *itertools.chain.from_iterable(
+                (stmt.translate(settings).splitlines() for stmt in self.body)
+            )
         ]
-        return '\n'.join([*header, *((indent * 2) + b for b in body)])
+        return "\n".join([*header, *((indent * 2) + b for b in body)])
+
 
 class FunctionInvocationKind(Enum):
     EXTRA_BUILTIN = "extra"
     STANDARD_BUILTIN = "std"
     USER_DEFINED_FUNCTION = "user-func"
 
-_STANDARD_BUILTIN_MAP = {
-    "echo": "print"
-}
+
+_STANDARD_BUILTIN_MAP = {"echo": "print"}
+
 
 @dataclass
 class FunctionInvocation(Statement):
@@ -191,13 +219,16 @@ class FunctionInvocation(Statement):
                 prefix = ""
             else:
                 sep = "\n"
-                prefix = ' ' * 2
-            return sep.join([
-                f"{name}(",
-                *(f"{prefix}{arg}," for arg in args),
-                *(f"{prefix}{key}={value}," for key, value in kwargs.items()),
-                ")"
-            ])
+                prefix = " " * 2
+            return sep.join(
+                [
+                    f"{name}(",
+                    *(f"{prefix}{arg}," for arg in args),
+                    *(f"{prefix}{key}={value}," for key, value in kwargs.items()),
+                    ")",
+                ]
+            )
+
         args = []
         kwargs = {}
         if self.kind == FunctionInvocationKind.EXTRA_BUILTIN:
@@ -209,10 +240,8 @@ class FunctionInvocation(Statement):
                 raise ZshError(f"Not yet implemented: Builtin {self.name}") from None
         elif self.kind == FunctionInvocationKind.USER_DEFINED_FUNCTION:
             actual_name = self.name
-            kwargs['parent_ctx'] = 'ctx'
+            kwargs["parent_ctx"] = "ctx"
         else:
             raise AssertionError
         args.extend((arg.translate(settings) for arg in self.args))
-        return format_call(
-            actual_name, args, **kwargs
-        )
+        return format_call(actual_name, args, **kwargs)

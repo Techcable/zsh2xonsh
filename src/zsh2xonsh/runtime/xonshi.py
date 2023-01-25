@@ -6,20 +6,23 @@ It also implements somewhat reasonable fallback code if
 xonsh is not detected (useful for testing)
 """
 from __future__ import annotations
-import sys
-import os
 
-from typing import Optional
+import os
+import sys
 from dataclasses import dataclass
 from enum import Enum
+from typing import Optional
 
-if 'xonsh' in sys.modules:
+if "xonsh" in sys.modules:
     import xonsh
     import xonsh.environ
     import xonsh.tools
 else:
-    if 'pytest' not in sys.modules:
-        print("WARNING: Could not detect `xonsh` support (enabling fallback)", file=sys.stderr)
+    if "pytest" not in sys.modules:
+        print(
+            "WARNING: Could not detect `xonsh` support (enabling fallback)",
+            file=sys.stderr,
+        )
     xonsh = None
 
 
@@ -48,7 +51,7 @@ class VarKind(Enum):
             else:
                 raise ValueError(f"Expected empty string for `None` var: {text!r}")
         elif self == VarKind.PATH:
-            raise NotImplementedError # Paths are a special case
+            raise NotImplementedError  # Paths are a special case
         else:
             raise AssertionError("Unexpected VarKind: " + str(self))
         return TypedVar(value, kind=self)
@@ -69,6 +72,7 @@ class VarKind(Enum):
             except ValueError:
                 return None
 
+
 @dataclass
 class TypedVar:
     value: object
@@ -79,6 +83,7 @@ class TypedVar:
 
     def __repr__(self):
         return repr(self.value)
+
 
 def assign_env_var(target: str, value: str):
     """Assign the value of the specified environment variable to the specified (string) value.
@@ -118,7 +123,7 @@ def get_typed_env_var(target: str, *, allow_unknown_type=False) -> TypedVar:
     assert xonsh is not None, "Expected xonsh to be present"
     # NOTE: This properly respects type and it also throws KeyError
     #
-    # Really we're just patching support 
+    # Really we're just patching support
     value = xonsh.environ.XSH.env[target]
     detected_kind = VarKind.detect(value)
     if detected_kind is None and not allow_unknown_type:
@@ -137,4 +142,3 @@ def get_correct_env() -> dict:
         return xonsh.environ.XSH.env.detype()
     else:
         return os.environ()
-

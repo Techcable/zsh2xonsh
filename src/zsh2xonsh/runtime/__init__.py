@@ -1,13 +1,11 @@
 """The zsh2xonsh `runtime`. This is invoked by generated code...."""
 from __future__ import annotations
 
-from typing import Optional, Callable
-
-import os.path
 import collections.abc
+import os.path
 from contextlib import contextmanager
-from subprocess import run, CalledProcessError, PIPE, DEVNULL
-
+from subprocess import DEVNULL, PIPE, CalledProcessError, run
+from typing import Callable, Optional
 
 from . import xonshi
 
@@ -19,19 +17,22 @@ class ZshError(RuntimeError):
         super().__init__(*args)
         self.returncode = returncode
 
+
 class ZshSyntaxError(ZshError):
     pass
 
 
-FAKE_ENV = {
-    "SHELL": "/bin/zsh"
-}
+FAKE_ENV = {"SHELL": "/bin/zsh"}
+
 
 class ZshContext:
     __slots__ = "_locals", "parent", "_positional_vars"
     parent: Optional[ZshContext]
-    _locals: dict[str, object] # A mapping from local variable names to values
-    _positional_vars: list[str] # Note: These are seperate from locals because zsh handles $0 $1 $2 specially
+    _locals: dict[str, object]  # A mapping from local variable names to values
+    _positional_vars: list[
+        str
+    ]  # Note: These are seperate from locals because zsh handles $0 $1 $2 specially
+
     def __init__(self, *, parent: Optional[ZshContext] = None):
         self._locals = {}
         self.parent = parent
@@ -42,14 +43,16 @@ class ZshContext:
         assert isinstance(name, str)
         ctx = ZshContext(parent=self)
         assert not ctx._positional_vars
-        ctx._positional_vars.append(name) # $0
+        ctx._positional_vars.append(name)  # $0
         ctx._positional_vars.extend(args)
         yield ctx
         ctx._locals.clear()
 
     def assign_local(self, name: str, value: object):
         assert isinstance(name, str)
-        self._locals[name] = str(value) # Everything must be normalized to string for zsh :(
+        self._locals[name] = str(
+            value
+        )  # Everything must be normalized to string for zsh :(
         return value
 
     def zsh_test_command(self, test: str) -> bool:
@@ -70,7 +73,7 @@ class ZshContext:
 
         From the zsh docs:
         > Every eligible word in the shell input is checked to see if there is an alias defined for it.
-        > If so, it is replaced by the text of the alias if it is in command position 
+        > If so, it is replaced by the text of the alias if it is in command position
 
         Also
 
@@ -79,16 +82,17 @@ class ZshContext:
         This delegates to zsh for the hard part of actual doing the glob expansion.
 
         Returns a callable function that actually implements the alias"""
+
         def impl_callaback(args):
             # So what about those extra args provided to xonsh alias callbacks?
             # Do they do something special to input/output?
-            cmd = alias # let zsh do the expansion
+            cmd = alias  # let zsh do the expansion
             if args:
                 cmd += " "
-                cmd += ' '.join(quote_into_shell_string(arg) for arg in args)
+                cmd += " ".join(quote_into_shell_string(arg) for arg in args)
             return self.zsh(cmd)
-        return impl_callaback
 
+        return impl_callaback
 
     def expand_literal(self, s: str) -> str:
         # NOTE: It's up to the compiler to avoid unessicary calls to this function
@@ -113,7 +117,7 @@ class ZshContext:
 
         xonsh's approach of typed variables is obviously better than the traditional shell approach,
         but it makes compatibility more difficult on our part ;)
-    
+
         In addition to $PATH variables, xonsh has some other examples of typed variables as well.
         In that case, this function makes a best-effort approach to preserve existing types.
 
@@ -122,13 +126,17 @@ class ZshContext:
         will set $FOO=False (preserving the type) instead of blindly setting
         $FOO="0". This is useful for converting between the zsh and xonsh worlds.
         """
-        assert isinstance(new_value, str), f"Expected a string, not a {type(new_value)!r}"
+        assert isinstance(
+            new_value, str
+        ), f"Expected a string, not a {type(new_value)!r}"
+
         def assign_untyped():
             """Fallback to directly assigning as a string"""
             xonshi.assign_env_var(variable_name, new_value)
+
         try:
             old_value = xonshi.get_typed_env_var(variable_name, allow_unknown_type=True)
-        except KeyError: 
+        except KeyError:
             # Variable is uninitialized, so just fallback to setting as string.
             #
             # This will not preserve types of int/bool variables,
@@ -152,7 +160,7 @@ class ZshContext:
                 # If a parse error occurs, fallback to untyped behavior
                 #
                 # This will implicitly change the type of the variable to string,
-                # but is better than ignoring the assignment completely 
+                # but is better than ignoring the assignment completely
                 # or throwing an error
                 assign_untyped()
                 return
@@ -166,12 +174,14 @@ class ZshContext:
         #
         # This is a poor man's diff
         if old_path not in new_path:
-            raise ZshError(f"Changes between old and new ${var_name} are too complicated: {old_path!r} -> {new_path!r}")
+            raise ZshError(
+                f"Changes between old and new ${var_name} are too complicated: {old_path!r} -> {new_path!r}"
+            )
         offset = new_path.find(old_path)
         prefix = new_path[:offset]
-        suffix = new_path[offset+len(old_path):]
+        suffix = new_path[offset + len(old_path) :]
         if prefix:
-            preifxed_parts = prefix.split(':')
+            preifxed_parts = prefix.split(":")
             if preifxed_parts[-1] == "":
                 preifxed_parts.pop()
         else:
@@ -179,7 +189,7 @@ class ZshContext:
         for part in reversed(preifxed_parts):
             target.insert(0, part)
         if suffix:
-            suffixed_parts = suffix.split(':')
+            suffixed_parts = suffix.split(":")
             if suffixed_parts[0] == "":
                 suffixed_parts.pop(0)
         else:
@@ -187,10 +197,15 @@ class ZshContext:
         for part in suffixed_parts:
             target.append(part)
 
-
     def _check_syntax(self, cmd):
         try:
-            run(['zsh', '--no-exec', '-c', cmd], check = True, stderr=PIPE, stdout=DEVNULL, encoding='utf8')
+            run(
+                ["zsh", "--no-exec", "-c", cmd],
+                check=True,
+                stderr=PIPE,
+                stdout=DEVNULL,
+                encoding="utf8",
+            )
         except CalledProcessError as e:
             # Only reason this can fail is if syntax is invalid
             reason = e.stderr.strip()
@@ -205,8 +220,16 @@ class ZshContext:
         resolved.update(self._locals)
         return resolved
 
-    def zsh(self, cmd: str, *, inherit_env=True, check=False, pipe=True, trim_trailing_newline=True) -> str:
-        self._check_syntax(cmd) # Verify its valid syntax
+    def zsh(
+        self,
+        cmd: str,
+        *,
+        inherit_env=True,
+        check=False,
+        pipe=True,
+        trim_trailing_newline=True,
+    ) -> str:
+        self._check_syntax(cmd)  # Verify its valid syntax
         # NOTE: Use xonsh's environment
         #
         # This avoids issue with `os.environ` caching
@@ -219,18 +242,24 @@ class ZshContext:
             #
             # Per the zsh docs, $0 $1 $2 are specified after the literal `-c`
             # You can test this with `zsh -c 'echo $1' foo bar` -> bar
-            s = run(['zsh', '-c', cmd, *self._positional_vars], env=env, check=True, stdout=PIPE if pipe else None, encoding='utf-8').stdout
-            if trim_trailing_newline and s and s[-1] == '\n':
+            s = run(
+                ["zsh", "-c", cmd, *self._positional_vars],
+                env=env,
+                check=True,
+                stdout=PIPE if pipe else None,
+                encoding="utf-8",
+            ).stdout
+            if trim_trailing_newline and s and s[-1] == "\n":
                 s = s[:-1]
             return s
         except CalledProcessError as cause:
             if check:
-                raise ZshError("Failed to execute {cmd!r}", returncode=cause.returncode) from cause
+                raise ZshError(
+                    "Failed to execute {cmd!r}", returncode=cause.returncode
+                ) from cause
             else:
                 # TODO: Is it a good idea to swallow errors like this?
                 return None
-
-
 
 
 @contextmanager
@@ -238,24 +267,22 @@ def init_context() -> ZshContext:
     yield ZshContext()
 
 
-
 # TODO: This could use some work
 # I do not understand the intracacies of single-quoted strings
 #
 # Could accidentally end up with a bizzare glob here ;)
-_NAUGHTY_CHARS = {'\\', '\''}
+_NAUGHTY_CHARS = {"\\", "'"}
+
+
 def quote_into_shell_string(s):
-    res = ['\'']
+    res = ["'"]
     for c in s:
         if c in _NAUGHTY_CHARS:
             res.extend(("\\", c))
         else:
             res.append(c)
-    res.append('\'')
-    return ''.join(res)
+    res.append("'")
+    return "".join(res)
 
 
-
-
-
-__all__ = ['init', 'ZshContext', 'ZshError']
+__all__ = ["init", "ZshContext", "ZshError"]
